@@ -57,52 +57,46 @@ static void CalculatePixels(Color* pixels)
         for (int x = 0; x < SCREEN_WIDTH; x += 4)
         {
             int index = y * SCREEN_WIDTH + x;
-            
-            float x0[4] = 
-            {
-                ((float)(x    ) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 1) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 2) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0
-            };
+            __m128 x0_vec = _mm_setr_ps(
+                                ((float)(x    ) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 1) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 2) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0
+                            );
 
-            float y0[4] = 
-            {
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0
-            };
+            __m128 y0_vec = _mm_set1_ps(((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0);
 
-            float X[4] = {}; for(int i = 0; i < 4; i++) X[i] = x0[i];
-            float Y[4] = {}; for(int i = 0; i < 4; i++) Y[i] = y0[i];
+            __m128 X_vec = x0_vec;
+            __m128 Y_vec = y0_vec;
 
-            int cmp[4] = {};
-
-            unsigned char N[4] = {};
+            __m128 N = _mm_setzero_ps();
 
             for(int n = 0; n < nMax; n++)
             {
-                float x2[4] = {}; for(int i = 0; i < 4; i++) x2[i] = X[i] * X[i];
-                float y2[4] = {}; for(int i = 0; i < 4; i++) y2[i] = Y[i] * Y[i];
-                float xy[4] = {}; for(int i = 0; i < 4; i++) xy[i] = X[i] * Y[i];
-            
-                float r2[4] = {}; for(int i = 0; i < 4; i++) r2[i] = x2[i] + y2[i];
-            
-                int cmp[4] = {};
-                for (int i = 0; i < 4; i++) if(r2[i] <= r2Max) cmp[i] = 1;
+                __m128 x2_vec = _mm_mul_ps(X_vec, X_vec);
+                __m128 y2_vec = _mm_mul_ps(Y_vec, Y_vec);
+                __m128 xy_vec = _mm_mul_ps(X_vec, Y_vec);
 
-                int mask = 0;
-                for(int i = 0; i < 4; i++) mask |= (cmp[i] << i);
-                if(!mask) break;;
-                
-                for(int i = 0; i < 4; i++) N[i] += cmp[i];
-                for(int i = 0; i < 4; i++) X[i] = x2[i] - y2[i] + x0[i];
-                for(int i = 0; i < 4; i++) Y[i] = xy[i] + xy[i] + y0[i];
+                __m128 r2_vec = _mm_add_ps(x2_vec, y2_vec);
+            
+                __m128 cmp = _mm_cmple_ps(r2_vec, _mm_set1_ps(r2Max));
+                int mask = _mm_movemask_ps(cmp);
+                if (mask == 0) break;
 
+                N = _mm_add_ps(N, _mm_and_ps(cmp, _mm_set1_ps(1.0f)));
+
+                X_vec = _mm_add_ps(_mm_sub_ps(x2_vec, y2_vec), x0_vec);
+                Y_vec = _mm_add_ps(_mm_add_ps(xy_vec, xy_vec), y0_vec);
             }
 
-            for(int i = 0; i < 4; i++)  pixels[index + i] = (Color){ N[i], N[i], N[i], nMax };
+
+            float n_vals[4];
+            _mm_storeu_ps(n_vals, N);
+            for (int i = 0; i < 4; i++) 
+            {
+                unsigned char intensity = (unsigned char)(n_vals[i]);
+                pixels[index + i] = (Color){ intensity, intensity, intensity, 255 };
+            }
         }
     }
 }
