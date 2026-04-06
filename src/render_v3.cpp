@@ -1,7 +1,12 @@
 #include <immintrin.h>
+#include <math.h>
 
 #include "raylib.h"
 #include "render.h"
+
+//#define RENDER
+
+#define CYCLES 1000
 
 static const int SCREEN_WIDTH = 800;
 static const int SCREEN_HEIGHT = 600;
@@ -21,6 +26,8 @@ static void Input();
 
 void Render()
 {
+    #ifdef RENDER
+
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Mandelvrot");
 
     Image image = GenImageColor(SCREEN_WIDTH, SCREEN_HEIGHT, BLACK);
@@ -32,9 +39,10 @@ void Render()
 
     while (!WindowShouldClose())
     {
-        Input();
+        
         CalculatePixels((Color*)image.data);
 
+        Input();
         UpdateTexture(texture, image.data);
 
         BeginDrawing();
@@ -48,58 +56,78 @@ void Render()
     UnloadTexture(texture);
     UnloadImage(image);
     CloseWindow();
+
+    #else
+
+    for(size_t i = 0; i < CYCLES; i++)
+    {
+        CalculatePixels(NULL);
+    }
+
+    #endif
 }
 
 static void CalculatePixels(Color* pixels)
 {
     for (int y = 0; y < SCREEN_HEIGHT; y++)
     {
-        for (int x = 0; x < SCREEN_WIDTH; x += 4)
+        for (int x = 0; x < SCREEN_WIDTH; x += 8)
         {
             int index = y * SCREEN_WIDTH + x;
-            __m128 x0_vec = _mm_setr_ps(
+            __m256 x0_vec = _mm256_setr_ps(
                                 ((float)(x    ) - SCREEN_WIDTH/2)    / ZOOM + X0,
                                 ((float)(x + 1) - SCREEN_WIDTH/2)    / ZOOM + X0,
                                 ((float)(x + 2) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0
+                                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 4) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 5) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 6) - SCREEN_WIDTH/2)    / ZOOM + X0,
+                                ((float)(x + 7) - SCREEN_WIDTH/2)    / ZOOM + X0
                             );
 
-            __m128 y0_vec = _mm_set1_ps(((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0);
+            __m256 y0_vec = _mm256_set1_ps(((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0);
 
-            __m128 X_vec = x0_vec;
-            __m128 Y_vec = y0_vec;
+            __m256 X_vec = x0_vec;
+            __m256 Y_vec = y0_vec;
 
-            __m128 N = _mm_setzero_ps();
+            volatile __m256 N = _mm256_setzero_ps();
 
             for(int n = 0; n < nMax; n++)
             {
-                __m128 x2_vec = _mm_mul_ps(X_vec, X_vec);
-                __m128 y2_vec = _mm_mul_ps(Y_vec, Y_vec);
-                __m128 xy_vec = _mm_mul_ps(X_vec, Y_vec);
+                __m256 x2_vec = _mm256_mul_ps(X_vec, X_vec);
+                __m256 y2_vec = _mm256_mul_ps(Y_vec, Y_vec);
+                __m256 xy_vec = _mm256_mul_ps(X_vec, Y_vec);
 
-                __m128 r2_vec = _mm_add_ps(x2_vec, y2_vec);
+                __m256 r2_vec = _mm256_add_ps(x2_vec, y2_vec);
             
-                __m128 cmp = _mm_cmple_ps(r2_vec, _mm_set1_ps(r2Max));
-                int mask = _mm_movemask_ps(cmp);
+                __m256 cmp = _mm256_cmp_ps(r2_vec, _mm256_set1_ps(r2Max), _CMP_LE_OQ);
+                int mask = _mm256_movemask_ps(cmp);
                 if (mask == 0) break;
 
-                N = _mm_add_ps(N, _mm_and_ps(cmp, _mm_set1_ps(1.0f)));
+                N = _mm256_add_ps(N, _mm256_and_ps(cmp, _mm256_set1_ps(1.0f)));
 
-                X_vec = _mm_add_ps(_mm_sub_ps(x2_vec, y2_vec), x0_vec);
-                Y_vec = _mm_add_ps(_mm_add_ps(xy_vec, xy_vec), y0_vec);
+                X_vec = _mm256_add_ps(_mm256_sub_ps(x2_vec, y2_vec), x0_vec);
+                Y_vec = _mm256_add_ps(_mm256_add_ps(xy_vec, xy_vec), y0_vec);
             }
 
 
-            float n_vals[4];
-            _mm_storeu_ps(n_vals, N);
-            for (int i = 0; i < 4; i++) 
+            float n_vals[8];
+            _mm256_storeu_ps(n_vals, N);
+
+
+            #ifdef RENDER
+
+            for (int i = 0; i < 8; i++) 
             {
                 unsigned char intensity = (unsigned char)(n_vals[i]);
                 pixels[index + i] = (Color){ intensity, intensity, intensity, 255 };
             }
+
+            #endif
         }
     }
 }
+
 
 static void Input()
 {
