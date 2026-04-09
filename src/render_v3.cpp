@@ -1,12 +1,16 @@
 #include <immintrin.h>
 #include <math.h>
+#include <x86intrin.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "raylib.h"
 #include "render.h"
 
+
 //#define RENDER
 
-#define CYCLES 1000
+#define CYCLES 5000
 
 static const int SCREEN_WIDTH = 800;
 static const int SCREEN_HEIGHT = 600;
@@ -59,10 +63,20 @@ void Render()
 
     #else
 
+    FILE* plot = fopen("plot.file", "w+");
+    if(!plot) return;
+
     for(size_t i = 0; i < CYCLES; i++)
     {
+        uint64_t start = __rdtsc();
         CalculatePixels(NULL);
+        uint64_t end = __rdtsc();
+
+        uint64_t cycles = end - start;
+        fprintf(plot, "%lu;", cycles);
     }
+  
+    fclose(plot);
 
     #endif
 }
@@ -74,16 +88,16 @@ static void CalculatePixels(Color* pixels)
         for (int x = 0; x < SCREEN_WIDTH; x += 8)
         {
             int index = y * SCREEN_WIDTH + x;
-            __m256 x0_vec = _mm256_setr_ps(
-                                ((float)(x    ) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 1) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 2) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 4) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 5) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 6) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                                ((float)(x + 7) - SCREEN_WIDTH/2)    / ZOOM + X0
-                            );
+
+
+            float zoomer = 1/ZOOM;
+            float iterator[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+            __m256 x0_vec = _mm256_setzero_ps();
+            _mm256_storeu_ps(iterator, x0_vec);
+            x0_vec = _mm256_add_ps(x0_vec, _mm256_set1_ps(x));
+            x0_vec = _mm256_sub_ps(x0_vec, _mm256_set1_ps(SCREEN_WIDTH/2));
+            x0_vec = _mm256_mul_ps(x0_vec, _mm256_set1_ps(zoomer));
+            x0_vec = _mm256_add_ps(x0_vec, _mm256_set1_ps(X0));
 
             __m256 y0_vec = _mm256_set1_ps(((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0);
 

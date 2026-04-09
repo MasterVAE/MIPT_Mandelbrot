@@ -1,10 +1,13 @@
 #include <stdlib.h>
+#include <x86intrin.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "raylib.h"
 #include "render.h"
 
 //#define RENDER
-#define CYCLES 1000
+#define CYCLES 5000
 
 static const int SCREEN_WIDTH = 800;
 static const int SCREEN_HEIGHT = 600;
@@ -56,10 +59,20 @@ void Render()
 
     #else
 
+    FILE* plot = fopen("plot.file", "w+");
+    if(!plot) return;
+
     for(size_t i = 0; i < CYCLES; i++)
     {
+        uint64_t start = __rdtsc();
         CalculatePixels(NULL);
+        uint64_t end = __rdtsc();
+
+        uint64_t cycles = end - start;
+        fprintf(plot, "%lu;", cycles);
     }
+  
+    fclose(plot);
 
     #endif
 }

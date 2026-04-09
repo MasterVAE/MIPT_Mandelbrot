@@ -1,10 +1,15 @@
 #include <immintrin.h>
+#include <x86intrin.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "raylib.h"
 #include "render.h"
 
 //#define RENDER
-#define CYCLES 1000
+#define CYCLES 5000
+
+static const size_t UNROLLING_NUMBER = 8;
 
 static const int SCREEN_WIDTH = 800;
 static const int SCREEN_HEIGHT = 600;
@@ -21,6 +26,8 @@ static float Y0 = 0;
 
 static void CalculatePixels(Color* pixels);
 static void Input();
+
+#define CYCLE for(size_t i = 0; i < UNROLLING_NUMBER; i++)
 
 void Render()
 {
@@ -56,10 +63,20 @@ void Render()
 
     #else
 
+    FILE* plot = fopen("plot.file", "w+");
+    if(!plot) return;
+
     for(size_t i = 0; i < CYCLES; i++)
     {
+        uint64_t start = __rdtsc();
         CalculatePixels(NULL);
+        uint64_t end = __rdtsc();
+
+        uint64_t cycles = end - start;
+        fprintf(plot, "%lu;", cycles);
     }
+  
+    fclose(plot);
 
     #endif
 }
@@ -68,65 +85,46 @@ static void CalculatePixels(Color* pixels)
 {
     for (int y = 0; y < SCREEN_HEIGHT; y++)
     {
-        for (int x = 0; x < SCREEN_WIDTH; x += 8)
+        for (int x = 0; x < SCREEN_WIDTH; x += UNROLLING_NUMBER)
         {
             int index = y * SCREEN_WIDTH + x;
             
-            float x0[8] = 
-            {
-                ((float)(x    ) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 1) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 2) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 3) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 4) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 5) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 6) - SCREEN_WIDTH/2)    / ZOOM + X0,
-                ((float)(x + 7) - SCREEN_WIDTH/2)    / ZOOM + X0
-            };
+            float x0[UNROLLING_NUMBER] = {};
+            float y0[UNROLLING_NUMBER] = {};
+            CYCLE x0[i] = ((float)(x + i) - SCREEN_WIDTH/2)    / ZOOM + X0;
+            CYCLE y0[i] = ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0;
 
-            float y0[8] = 
-            {
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0,
-                ((float)y - SCREEN_HEIGHT/2)   / ZOOM + Y0
-            };
+            float X[UNROLLING_NUMBER] = {}; CYCLE X[i] = x0[i];
+            float Y[UNROLLING_NUMBER] = {}; CYCLE Y[i] = y0[i];
 
-            float X[8] = {}; for(int i = 0; i < 8; i++) X[i] = x0[i];
-            float Y[8] = {}; for(int i = 0; i < 8; i++) Y[i] = y0[i];
+            int cmp[UNROLLING_NUMBER] = {};
 
-            int cmp[8] = {};
-
-            volatile unsigned char N[8] = {};
+            volatile unsigned char N[UNROLLING_NUMBER] = {};
 
             for(int n = 0; n < nMax; n++)
             {
-                float x2[8] = {}; for(int i = 0; i < 8; i++) x2[i] = X[i] * X[i];
-                float y2[8] = {}; for(int i = 0; i < 8; i++) y2[i] = Y[i] * Y[i];
-                float xy[8] = {}; for(int i = 0; i < 8; i++) xy[i] = X[i] * Y[i];
+                float x2[UNROLLING_NUMBER] = {}; CYCLE x2[i] = X[i] * X[i];
+                float y2[UNROLLING_NUMBER] = {}; CYCLE y2[i] = Y[i] * Y[i];
+                float xy[UNROLLING_NUMBER] = {}; CYCLE xy[i] = X[i] * Y[i];
             
-                float r2[8] = {}; for(int i = 0; i < 8; i++) r2[i] = x2[i] + y2[i];
+                float r2[UNROLLING_NUMBER] = {}; CYCLE r2[i] = x2[i] + y2[i];
             
-                int cmp[8] = {};
-                for (int i = 0; i < 8; i++) if(r2[i] <= r2Max) cmp[i] = 1;
+                int cmp[UNROLLING_NUMBER] = {};
+                CYCLE if(r2[i] <= r2Max) cmp[i] = 1;
 
                 int mask = 0;
-                for(int i = 0; i < 8; i++) mask |= (cmp[i] << i);
+                CYCLE mask |= (cmp[i] << i);
                 if(!mask) break;;
                 
-                for(int i = 0; i < 8; i++) N[i] += cmp[i];
-                for(int i = 0; i < 8; i++) X[i] = x2[i] - y2[i] + x0[i];
-                for(int i = 0; i < 8; i++) Y[i] = xy[i] + xy[i] + y0[i];
+                CYCLE N[i] += cmp[i];
+                CYCLE X[i] = x2[i] - y2[i] + x0[i];
+                CYCLE Y[i] = xy[i] + xy[i] + y0[i];
 
             }
 
             #ifdef RENDER
 
-            for(int i = 0; i < 8; i++)  pixels[index + i] = (Color){ N[i], N[i], N[i], nMax };
+            CYCLE  pixels[index + i] = (Color){ N[i], N[i], N[i], nMax };
 
             #endif
         }
