@@ -25,4 +25,4 @@ def plot_data_from_file(filename, output_filename="graph.png"):
     plt.savefig(output_filename, dpi=300, bbox_inches='tight')
 
 
-plot_data_from_file("plot.file", "plot.png")
+plot_data_from_file("plot.data", "plot.png")

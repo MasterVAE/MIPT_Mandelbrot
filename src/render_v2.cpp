@@ -7,7 +7,7 @@
 #include "render.h"
 
 //#define RENDER
-#define CYCLES 5000
+#define CYCLES 10000
 
 static const size_t UNROLLING_NUMBER = 8;
 
@@ -63,20 +63,16 @@ void Render()
 
     #else
 
-    FILE* plot = fopen("plot.file", "w+");
-    if(!plot) return;
+    uint64_t start = __rdtsc();
 
     for(size_t i = 0; i < CYCLES; i++)
     {
-        uint64_t start = __rdtsc();
         CalculatePixels(NULL);
-        uint64_t end = __rdtsc();
-
-        uint64_t cycles = end - start;
-        fprintf(plot, "%lu;", cycles);
     }
-  
-    fclose(plot);
+    uint64_t end = __rdtsc();
+
+    uint64_t cycles = end - start;
+    printf("cycles: %lu\n", cycles);
 
     #endif
 }

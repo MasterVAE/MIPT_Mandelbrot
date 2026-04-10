@@ -10,7 +10,7 @@
 
 //#define RENDER
 
-#define CYCLES 5000
+#define CYCLES 10000
 
 static const int SCREEN_WIDTH = 800;
 static const int SCREEN_HEIGHT = 600;
@@ -63,9 +63,7 @@ void Render()
 
     #else
 
-    FILE* plot = fopen("plot.file", "w+");
-    if(!plot) return;
-
+    FILE* file = fopen("plot.data", "w+");
     for(size_t i = 0; i < CYCLES; i++)
     {
         uint64_t start = __rdtsc();
@@ -73,10 +71,9 @@ void Render()
         uint64_t end = __rdtsc();
 
         uint64_t cycles = end - start;
-        fprintf(plot, "%lu;", cycles);
+        fprintf(file, "%lu\n;", cycles);
     }
-  
-    fclose(plot);
+    fclose(file);
 
     #endif
 }
