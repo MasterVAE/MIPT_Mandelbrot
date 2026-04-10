@@ -59,16 +59,17 @@ void Render()
 
     #else
 
-    uint64_t start = __rdtsc();
-
+    FILE* file = fopen("plot.data", "w+");
     for(size_t i = 0; i < CYCLES; i++)
     {
+        uint64_t start = __rdtsc();
         CalculatePixels(NULL);
-    }
-    uint64_t end = __rdtsc();
+        uint64_t end = __rdtsc();
 
-    uint64_t cycles = end - start;
-    printf("cycles: %lu\n", cycles);
+        uint64_t cycles = end - start;
+        fprintf(file, "%lu\n;", cycles);
+    }
+    fclose(file);
 
     #endif
 }
