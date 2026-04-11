@@ -7,7 +7,6 @@
 #include "raylib.h"
 #include "render.h"
 
-
 //#define RENDER
 
 #define CYCLES 10000
@@ -86,13 +85,11 @@ static void CalculatePixels(Color* pixels)
         {
             int index = y * SCREEN_WIDTH + x;
 
-
             float zoomer = 1/ZOOM;
-            float iterator[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-            __m256 x0_vec = _mm256_setzero_ps();
-            _mm256_storeu_ps(iterator, x0_vec);
-            x0_vec = _mm256_add_ps(x0_vec, _mm256_set1_ps(x));
-            x0_vec = _mm256_sub_ps(x0_vec, _mm256_set1_ps(SCREEN_WIDTH/2));
+
+
+            __m256 x_coords = _mm256_set_ps(x+7, x+6, x+5, x+4, x+3, x+2, x+1, x);
+            __m256 x0_vec = _mm256_sub_ps(x_coords, _mm256_set1_ps(SCREEN_WIDTH/2.0f));
             x0_vec = _mm256_mul_ps(x0_vec, _mm256_set1_ps(zoomer));
             x0_vec = _mm256_add_ps(x0_vec, _mm256_set1_ps(X0));
 
